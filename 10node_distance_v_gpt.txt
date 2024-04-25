@@ -1,0 +1,52 @@
+set ns [new Simulator]
+set nf [open out.nam w]
+$ns namtrace-all $nf
+set tr [open out.tr w]
+$ns trace-all $tr
+
+proc finish {} {
+    global ns nf tr
+    $ns flush-trace
+    close $tr
+    exec nam out.nam &
+    exit 0
+}
+
+set num_nodes 10
+
+for {set i 0} {$i < $num_nodes} {incr i} {
+    set n($i) [$ns node]
+}
+
+for {set i 0} {$i < $num_nodes} {incr i} {
+    if {$i < [expr {$num_nodes - 1}]} {
+        $ns duplex-link $n($i) $n([expr {$i + 1}]) 1Mb 10ms DropTail
+    }
+}
+
+for {set i 0} {$i < $num_nodes} {incr i} {
+    set udp($i) [new Agent/UDP]
+    $ns attach-agent $n($i) $udp($i)
+
+    set cbr($i) [new Application/Traffic/CBR]
+    $cbr($i) set packetSize_ 500
+    $cbr($i) set interval_ 0.005
+    $cbr($i) attach-agent $udp($i)
+
+    if {$i != 0 && $i != [expr {$num_nodes - 1}]} {
+        set null($i) [new Agent/Null]
+        $ns attach-agent $n($i) $null($i)
+        $ns connect $udp($i) $null($i)
+    }
+}
+
+$ns rtproto DV 
+$ns rtmodel-at 0.8 down $n(0) $n(2)
+$ns rtmodel-at 1.2 up $n(0) $n(2)
+
+for {set i 0} {$i < $num_nodes} {incr i} {
+    $ns at 0.0 "$cbr($i) start"
+}
+$ns at 5.0 "finish"
+
+$ns run
